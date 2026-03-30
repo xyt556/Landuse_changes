@@ -1,0 +1,5 @@
+{
+  "name": "土地利用变化分析",
+  "description": "An interactive tool for land use transfer matrix calculation and Sankey diagram visualization.",
+  "requestFramePermissions": []
+}
