@@ -3,17 +3,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo } from 'react';
-import { LayoutDashboard, BarChart3, Info, Github, Download, Share2, HelpCircle, Map as MapIcon, Table as TableIcon, GitBranch, CircleDot, BarChart as BarChartIcon } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { LayoutDashboard, BarChart3, Info, Github, Download, Share2, HelpCircle, Map as MapIcon, Table as TableIcon, GitBranch, CircleDot, BarChart as BarChartIcon, ChevronDown, FileText, FileSpreadsheet, FileJson, X } from 'lucide-react';
 import TransferMatrix, { SpatialData } from './components/TransferMatrix';
 import SankeyDiagram from './components/SankeyDiagram';
 import ChordDiagram from './components/ChordDiagram';
 import StackedBarChart from './components/StackedBarChart';
 import UserGuide from './components/UserGuide';
 import SpatialMap from './components/SpatialMap';
+import { exportToCSV, exportToExcel, exportToPDF, calculateStats } from './lib/exportUtils';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportConfig, setReportConfig] = useState({
+    title: '土地利用转移分析报告',
+    author: 'GIS 分析员',
+    organization: '',
+    notes: '',
+    includeMatrix: true,
+    includeStats: true,
+    includeCharts: true,
+  });
+
   const [activeTab, setActiveTab] = useState<'stats' | 'spatial'>('stats');
   const [activeViz, setActiveViz] = useState<'sankey' | 'chord' | 'stacked'>('sankey');
   const [sankeyData, setSankeyData] = useState<{ nodes: any[]; links: any[] }>({
@@ -22,6 +36,19 @@ export default function App() {
   });
   const [fullData, setFullData] = useState<{ matrix: number[][]; categories: string[]; colors: string[] } | null>(null);
   const [spatialData, setSpatialData] = useState<SpatialData | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const mergedSpatialData = useMemo(() => {
     if (!spatialData) return null;
@@ -85,16 +112,84 @@ export default function App() {
               <button className="text-gray-400 hover:text-gray-600 transition-colors">
                 <Share2 className="w-5 h-5" />
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-full hover:bg-gray-800 transition-all shadow-sm">
-                <Download className="w-4 h-4" />
-                导出报告
-              </button>
+              
+              <div className="relative" ref={exportMenuRef}>
+                <button 
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  disabled={!fullData}
+                  className={`flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-full hover:bg-gray-800 transition-all shadow-sm ${!fullData ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Download className="w-4 h-4" />
+                  导出报告
+                  <ChevronDown className={`w-3 h-3 transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {isExportMenuOpen && fullData && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+                    >
+                      <div className="p-2 space-y-1">
+                        <button 
+                          onClick={() => {
+                            exportToCSV(fullData);
+                            setIsExportMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                        >
+                          <FileText className="w-4 h-4 text-blue-500" />
+                          导出 CSV 数据
+                        </button>
+                        <button 
+                          onClick={() => {
+                            exportToExcel(fullData);
+                            setIsExportMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 text-green-500" />
+                          导出 Excel 报告
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            setIsExportMenuOpen(false);
+                            setIsReportModalOpen(true);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                        >
+                          <FileText className="w-4 h-4 text-red-500" />
+                          生成 PDF 报告
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const json = JSON.stringify(fullData, null, 2);
+                            const blob = new Blob([json], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = 'land_use_data.json';
+                            link.click();
+                            setIsExportMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                        >
+                          <FileJson className="w-4 h-4 text-orange-500" />
+                          导出 JSON 数据
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="report-content">
         {/* Tab Navigation */}
         <div className="flex items-center gap-4 mb-8 bg-white p-1.5 rounded-2xl border border-gray-200 w-fit shadow-sm">
           <button 
@@ -273,6 +368,177 @@ export default function App() {
         </div>
       </footer>
       <UserGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+
+      {/* Report Customization Modal */}
+      <AnimatePresence>
+        {isReportModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-500 p-2 rounded-lg">
+                    <FileText className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900">定制导出报告</h3>
+                </div>
+                <button onClick={() => setIsReportModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">报告标题</label>
+                  <input
+                    value={reportConfig.title}
+                    onChange={(e) => setReportConfig({ ...reportConfig, title: e.target.value })}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">作者</label>
+                    <input
+                      value={reportConfig.author}
+                      onChange={(e) => setReportConfig({ ...reportConfig, author: e.target.value })}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">机构</label>
+                    <input
+                      value={reportConfig.organization}
+                      onChange={(e) => setReportConfig({ ...reportConfig, organization: e.target.value })}
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">备注</label>
+                  <textarea
+                    value={reportConfig.notes}
+                    onChange={(e) => setReportConfig({ ...reportConfig, notes: e.target.value })}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none h-20 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <label className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg cursor-pointer">
+                    <input type="checkbox" checked={reportConfig.includeMatrix} onChange={e => setReportConfig({...reportConfig, includeMatrix: e.target.checked})} />
+                    <span className="text-xs font-medium">包含转移矩阵</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg cursor-pointer">
+                    <input type="checkbox" checked={reportConfig.includeStats} onChange={e => setReportConfig({...reportConfig, includeStats: e.target.checked})} />
+                    <span className="text-xs font-medium">包含统计表格</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="p-6 bg-gray-50 flex gap-3">
+                <button onClick={() => setIsReportModalOpen(false)} className="flex-1 py-2 text-sm font-bold text-gray-500">取消</button>
+                <button 
+                  onClick={async () => {
+                    setIsReportModalOpen(false);
+                    setTimeout(() => exportToPDF('hidden-report-container', reportConfig.title), 300);
+                  }}
+                  className="flex-1 py-2 bg-amber-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20"
+                >
+                  生成 PDF
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Hidden Report Container for PDF Generation */}
+      <div className="fixed left-[-9999px] top-[-9999px]">
+        <div id="hidden-report-container" ref={reportRef} className="w-[800px] p-12 bg-white text-gray-900 font-sans">
+          <div className="border-b-4 border-blue-600 pb-6 mb-8">
+            <h1 className="text-4xl font-black mb-2">{reportConfig.title}</h1>
+            <div className="flex justify-between items-end text-sm text-gray-500">
+              <div>
+                <p>作者: <span className="font-bold text-gray-700">{reportConfig.author}</span></p>
+                {reportConfig.organization && <p>机构: <span className="font-bold text-gray-700">{reportConfig.organization}</span></p>}
+              </div>
+              <p>日期: {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          {reportConfig.notes && (
+            <div className="mb-8 p-4 bg-gray-50 rounded-xl border-l-4 border-gray-300 italic text-gray-600">
+              {reportConfig.notes}
+            </div>
+          )}
+
+          {fullData && reportConfig.includeMatrix && (
+            <div className="mb-10">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <div className="w-2 h-6 bg-blue-600 rounded-full" />
+                土地利用转移矩阵
+              </h2>
+              <table className="w-full text-[10px] border-collapse border border-gray-200">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="p-2 border border-gray-200">T1 \ T2</th>
+                    {fullData.categories.map(c => <th key={c} className="p-2 border border-gray-200">{c}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {fullData.matrix.map((row, i) => (
+                    <tr key={i}>
+                      <td className="p-2 border border-gray-200 font-bold bg-gray-50">{fullData.categories[i]}</td>
+                      {row.map((val, j) => <td key={j} className="p-2 border border-gray-200 text-right">{val.toLocaleString()}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {fullData && reportConfig.includeStats && (
+            <div className="mb-10">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <div className="w-2 h-6 bg-green-600 rounded-full" />
+                变化特征统计
+              </h2>
+              <table className="w-full text-[10px] border-collapse border border-gray-200">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="p-2 border border-gray-200">类别</th>
+                    <th className="p-2 border border-gray-200">T1 面积</th>
+                    <th className="p-2 border border-gray-200">T2 面积</th>
+                    <th className="p-2 border border-gray-200">净变化</th>
+                    <th className="p-2 border border-gray-200">交换变化</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calculateStats(fullData.matrix, fullData.categories).map(s => (
+                    <tr key={s.name}>
+                      <td className="p-2 border border-gray-200 font-bold">{s.name}</td>
+                      <td className="p-2 border border-gray-200 text-right">{s.t1.toLocaleString()}</td>
+                      <td className="p-2 border border-gray-200 text-right">{s.t2.toLocaleString()}</td>
+                      <td className={`p-2 border border-gray-200 text-right font-bold ${s.net > 0 ? 'text-green-600' : 'text-red-600'}`}>{s.net.toLocaleString()}</td>
+                      <td className="p-2 border border-gray-200 text-right">{s.swap.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-20 pt-6 border-t border-gray-100 text-[10px] text-gray-400 text-center italic">
+            报告由土地利用转移分析系统自动生成 • © 2026 Land Use Analyzer
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

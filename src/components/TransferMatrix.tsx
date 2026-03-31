@@ -119,6 +119,119 @@ const CLASSIFICATION_PRESETS: Record<string, { value: number; label: string; col
   ]
 };
 
+const ExportDropdown = ({ 
+  label, 
+  onExport, 
+  icon: Icon, 
+  className,
+  formats = ['csv', 'json', 'excel']
+}: { 
+  label: string, 
+  onExport: (format: string) => void, 
+  icon: any, 
+  className?: string,
+  formats?: string[]
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors",
+          className
+        )}
+      >
+        <Icon className="w-4 h-4" />
+        {label}
+        <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[110] animate-in fade-in slide-in-from-top-2 duration-200">
+          {formats.includes('csv') && (
+            <button
+              onClick={() => { onExport('csv'); setIsOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <TableIcon className="w-4 h-4 text-emerald-500" />
+              导出为 CSV
+            </button>
+          )}
+          {formats.includes('json') && (
+            <button
+              onClick={() => { onExport('json'); setIsOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <FileJson className="w-4 h-4 text-amber-500" />
+              导出为 JSON
+            </button>
+          )}
+          {formats.includes('excel') && (
+            <button
+              onClick={() => { onExport('excel'); setIsOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-blue-500" />
+              导出为 Excel
+            </button>
+          )}
+          {formats.includes('pdf') && (
+            <button
+              onClick={() => { onExport('pdf'); setIsOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <FileText className="w-4 h-4 text-red-500" />
+              导出为 PDF 报告
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AccessibleTooltip = ({ children, content }: { children: ReactNode, content: string }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const id = useId();
+
+  return (
+    <div className="relative inline-block">
+      <div
+        onMouseEnter={() => setIsVisible(true)}
+        onMouseLeave={() => setIsVisible(false)}
+        onFocus={() => setIsVisible(true)}
+        onBlur={() => setIsVisible(false)}
+        aria-describedby={isVisible ? id : undefined}
+      >
+        {children}
+      </div>
+      {isVisible && (
+        <div
+          id={id}
+          role="tooltip"
+          className="absolute z-[300] px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded-md shadow-sm -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap animate-in fade-in zoom-in duration-200"
+        >
+          {content}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function TransferMatrix({ onDataChange, onFullDataChange, onSpatialDataChange, onShowGuide }: TransferMatrixProps) {
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [categoryColors, setCategoryColors] = useState<string[]>(() => 
@@ -134,240 +247,12 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
     author: '土地利用分析系统',
     organization: '',
     notes: '',
-    includeMatrix: true,
-    includeStats: true,
-    includeCharts: true,
+    showMatrix: true,
+    showStats: true,
+    showCharts: true,
   });
   const reportRef = useRef<HTMLDivElement>(null);
 
-  const ExportDropdown = ({ 
-    label, 
-    onExport, 
-    icon: Icon, 
-    className,
-    formats = ['csv', 'json', 'excel']
-  }: { 
-    label: string, 
-    onExport: (format: string) => void, 
-    icon: any, 
-    className?: string,
-    formats?: string[]
-  }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    return (
-      <div className="relative" ref={dropdownRef}>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={cn(
-            "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors",
-            className
-          )}
-        >
-          <Icon className="w-4 h-4" />
-          {label}
-          <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
-        </button>
-        
-        {isOpen && (
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[110] animate-in fade-in slide-in-from-top-2 duration-200">
-            {formats.includes('csv') && (
-              <button
-                onClick={() => { onExport('csv'); setIsOpen(false); }}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <TableIcon className="w-4 h-4 text-emerald-500" />
-                导出为 CSV
-              </button>
-            )}
-            {formats.includes('json') && (
-              <button
-                onClick={() => { onExport('json'); setIsOpen(false); }}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <FileJson className="w-4 h-4 text-amber-500" />
-                导出为 JSON
-              </button>
-            )}
-            {formats.includes('excel') && (
-              <button
-                onClick={() => { onExport('excel'); setIsOpen(false); }}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-blue-500" />
-                导出为 Excel
-              </button>
-            )}
-            {formats.includes('pdf') && (
-              <button
-                onClick={() => { onExport('pdf'); setIsOpen(false); }}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <FileText className="w-4 h-4 text-red-500" />
-                导出为 PDF 报告
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const AccessibleTooltip = ({ children, content }: { children: ReactNode, content: string }) => {
-    const [isVisible, setIsVisible] = useState(false);
-    const id = useId();
-
-    return (
-      <div className="relative inline-block">
-        <div
-          onMouseEnter={() => setIsVisible(true)}
-          onMouseLeave={() => setIsVisible(false)}
-          onFocus={() => setIsVisible(true)}
-          onBlur={() => setIsVisible(false)}
-          aria-describedby={isVisible ? id : undefined}
-        >
-          {children}
-        </div>
-        {isVisible && (
-          <div
-            id={id}
-            role="tooltip"
-            className="absolute z-[300] px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded-md shadow-sm -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap animate-in fade-in zoom-in duration-200"
-          >
-            {content}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const ReportModal = () => {
-    if (!isReportModalOpen) return null;
-
-    return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <div className="flex items-center gap-3">
-              <div className="bg-amber-500 p-2 rounded-lg">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">定制导出报告</h3>
-            </div>
-            <button onClick={() => setIsReportModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          
-          <div className="p-6 space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">报告标题</label>
-              <input
-                value={reportConfig.title}
-                onChange={(e) => setReportConfig({ ...reportConfig, title: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
-                placeholder="输入报告标题..."
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">作者</label>
-                <input
-                  value={reportConfig.author}
-                  onChange={(e) => setReportConfig({ ...reportConfig, author: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">机构/组织</label>
-                <input
-                  value={reportConfig.organization}
-                  onChange={(e) => setReportConfig({ ...reportConfig, organization: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
-                  placeholder="可选..."
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">备注/说明</label>
-              <textarea
-                value={reportConfig.notes}
-                onChange={(e) => setReportConfig({ ...reportConfig, notes: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none h-24 resize-none"
-                placeholder="添加报告备注..."
-              />
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">包含内容</label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={reportConfig.includeMatrix}
-                    onChange={(e) => setReportConfig({ ...reportConfig, includeMatrix: e.target.checked })}
-                    className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">转移矩阵</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={reportConfig.includeStats}
-                    onChange={(e) => setReportConfig({ ...reportConfig, includeStats: e.target.checked })}
-                    className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">变化统计</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={reportConfig.includeCharts}
-                    onChange={(e) => setReportConfig({ ...reportConfig, includeCharts: e.target.checked })}
-                    className="w-4 h-4 text-amber-500 rounded border-gray-300 focus:ring-amber-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">分析图表</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6 bg-gray-50 flex gap-3">
-            <button
-              onClick={() => setIsReportModalOpen(false)}
-              className="flex-1 px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              取消
-            </button>
-            <button
-              onClick={() => {
-                exportReport('pdf');
-                setIsReportModalOpen(false);
-              }}
-              className="flex-1 px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all flex items-center justify-center gap-2"
-            >
-              <FileText className="w-4 h-4" />
-              生成 PDF 报告
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
   const [importText, setImportText] = useState('');
   const [importType, setImportType] = useState<'matrix' | 'pairs' | 'triplets' | 'tif'>('matrix');
   
@@ -393,6 +278,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
   }>({});
   const [tifStats, setTifStats] = useState<{ t1?: Record<number, number>; t2?: Record<number, number> }>({});
 
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState<string | null>(null);
 
   const readTifData = async (file: File) => {
@@ -902,28 +788,64 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
   };
 
   const exportToPDF = async () => {
-    if (!reportRef.current) return;
+    if (!reportRef.current || isExportingPDF) return;
     
-    const canvas = await html2canvas(reportRef.current, {
-      scale: 2,
-      useCORS: true,
-      logging: false
-    });
-    
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save('land-use-report.pdf');
-    setExportDropdownOpen(null);
+    setIsExportingPDF(true);
+    try {
+      console.log('Starting PDF Export...');
+      // Wait for a small delay to ensure any dynamic content is rendered
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const element = reportRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      
+      const ratio = pdfWidth / imgWidth;
+      const canvasHeightOnPdf = imgHeight * ratio;
+      
+      let heightLeft = canvasHeightOnPdf;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightOnPdf);
+      heightLeft -= pdfHeight;
+
+      // Add subsequent pages if content is longer than one page
+      while (heightLeft > 0) {
+        position = heightLeft - canvasHeightOnPdf;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightOnPdf);
+        heightLeft -= pdfHeight;
+      }
+
+      const safeTitle = (reportConfig.title || 'land-use-report').replace(/[\\/:*?"<>|]/g, '_');
+      pdf.save(`${safeTitle}.pdf`);
+    } catch (err: any) {
+      console.error('PDF Export Error:', err);
+      alert(`导出 PDF 失败: ${err.message || '未知错误'}`);
+    } finally {
+      setIsExportingPDF(false);
+    }
   };
 
-  const exportReport = (format: 'csv' | 'pdf' = 'csv') => {
+  const exportReport = async (format: 'csv' | 'pdf' = 'csv') => {
     if (format === 'pdf') {
-      exportToPDF();
+      await exportToPDF();
       return;
     }
 
@@ -1264,127 +1186,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         </div>
       </div>
 
-      <ReportModal />
 
-      {/* Hidden Report Content for PDF Generation */}
-      <div className="fixed left-[-9999px] top-[-9999px]">
-        <div 
-          ref={reportRef} 
-          className="w-[800px] p-12 bg-white text-gray-900 font-sans"
-        >
-          <div className="border-b-4 border-blue-600 pb-6 mb-8">
-            <h1 className="text-4xl font-black mb-2">{reportConfig.title}</h1>
-            <div className="flex justify-between items-end text-sm text-gray-500">
-              <div>
-                <p>作者: <span className="font-bold text-gray-700">{reportConfig.author}</span></p>
-                {reportConfig.organization && <p>机构: <span className="font-bold text-gray-700">{reportConfig.organization}</span></p>}
-              </div>
-              <p>生成日期: {new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-
-          {reportConfig.notes && (
-            <div className="mb-8 p-4 bg-gray-50 rounded-xl border-l-4 border-gray-300 italic text-gray-600">
-              {reportConfig.notes}
-            </div>
-          )}
-
-          {reportConfig.includeMatrix && (
-            <div className="mb-10">
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <div className="w-2 h-6 bg-blue-600 rounded-full" />
-                土地利用转移矩阵
-              </h2>
-              <div className="overflow-hidden border border-gray-200 rounded-lg">
-                <table className="w-full text-[10px] border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="p-2 border-b border-r border-gray-200 text-left">T1 \ T2</th>
-                      {categories.map((cat, i) => (
-                        <th key={i} className="p-2 border-b border-gray-200 text-right">{cat}</th>
-                      ))}
-                      <th className="p-2 border-b border-l border-gray-200 text-right font-bold">总计</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matrix.map((row, r) => (
-                      <tr key={r}>
-                        <td className="p-2 border-r border-gray-200 bg-gray-50 font-medium">{categories[r]}</td>
-                        {row.map((val, c) => (
-                          <td key={c} className="p-2 border-b border-gray-100 text-right">{val.toLocaleString()}</td>
-                        ))}
-                        <td className="p-2 border-l border-gray-200 bg-gray-50 font-bold text-right">{row.reduce((a, b) => a + b, 0).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {reportConfig.includeStats && (
-            <div className="mb-10">
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <div className="w-2 h-6 bg-green-600 rounded-full" />
-                转移特征统计
-              </h2>
-              <div className="overflow-hidden border border-gray-200 rounded-lg">
-                <table className="w-full text-[10px] border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="p-2 border-b border-gray-200 text-left">类别</th>
-                      <th className="p-2 border-b border-gray-200 text-right">T1 面积</th>
-                      <th className="p-2 border-b border-gray-200 text-right">T2 面积</th>
-                      <th className="p-2 border-b border-gray-200 text-right">净变化</th>
-                      <th className="p-2 border-b border-gray-200 text-right">交换变化</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats.map((s, i) => (
-                      <tr key={i} className="border-b border-gray-100">
-                        <td className="p-2 font-medium">{s.name}</td>
-                        <td className="p-2 text-right">{s.t1.toLocaleString()}</td>
-                        <td className="p-2 text-right">{s.t2.toLocaleString()}</td>
-                        <td className={cn("p-2 text-right font-bold", s.net > 0 ? "text-green-600" : "text-red-600")}>
-                          {s.net > 0 ? '+' : ''}{s.net.toLocaleString()}
-                        </td>
-                        <td className="p-2 text-right">{s.swap.toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {reportConfig.includeCharts && (
-            <div className="mb-10">
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <div className="w-2 h-6 bg-amber-600 rounded-full" />
-                变化趋势分析图
-              </h2>
-              <div className="h-[300px] w-full border border-gray-100 rounded-xl p-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats}>
-                    <XAxis dataKey="name" fontSize={10} />
-                    <YAxis fontSize={10} />
-                    <Tooltip />
-                    <Bar dataKey="net" name="净变化">
-                      {stats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.net > 0 ? '#10b981' : '#ef4444'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-12 pt-6 border-t border-gray-100 text-[10px] text-gray-400 text-center">
-            报告由土地利用转移分析系统自动生成 • © {new Date().getFullYear()}
-          </div>
-        </div>
-      </div>
       {isImportOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -1626,136 +1428,136 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
                       </div>
                     </div>
 
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                            <span>像元值与类别对应 (Mapping)</span>
-                            <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                              {tempMapping.length} 个类别
-                            </span>
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <div className="relative group/presets">
-                              <button className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg transition-colors">
-                                <Sparkles className="w-3 h-3" />
-                                应用预设
-                              </button>
-                              <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 hidden group-hover/presets:block z-50">
-                                {Object.keys(CLASSIFICATION_PRESETS).map(presetName => (
-                                  <button
-                                    key={presetName}
-                                    onClick={() => {
-                                      const preset = CLASSIFICATION_PRESETS[presetName];
-                                      // Merge preset with detected values if any
-                                      const newMapping = detectedValues.length > 0 
-                                        ? detectedValues.map(v => {
-                                            const match = preset.find(p => p.value === v);
-                                            return match || { value: v, label: `类别 ${v}`, color: getInitialColor(`类别 ${v}`) };
-                                          })
-                                        : preset;
-                                      setTempMapping(newMapping);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                  >
-                                    {presetName}
-                                  </button>
-                                ))}
-                                <div className="h-px bg-gray-100 my-1 mx-2" />
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                          <span>像元值与类别对应 (Mapping)</span>
+                          <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                            {tempMapping.length} 个类别
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <div className="relative group/presets">
+                            <button className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg transition-colors">
+                              <Sparkles className="w-3 h-3" />
+                              应用预设
+                            </button>
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 hidden group-hover/presets:block z-50">
+                              {Object.keys(CLASSIFICATION_PRESETS).map(presetName => (
                                 <button
+                                  key={presetName}
                                   onClick={() => {
-                                    const newMapping = tempMapping.map(m => {
-                                      // Try to find match in any preset
-                                      for (const preset of Object.values(CLASSIFICATION_PRESETS)) {
-                                        const match = preset.find(p => p.value === m.value);
-                                        if (match) return { ...m, label: match.label, color: match.color };
-                                      }
-                                      return m;
-                                    });
+                                    const preset = CLASSIFICATION_PRESETS[presetName];
+                                    // Merge preset with detected values if any
+                                    const newMapping = detectedValues.length > 0 
+                                      ? detectedValues.map(v => {
+                                          const match = preset.find(p => p.value === v);
+                                          return match || { value: v, label: `类别 ${v}`, color: getInitialColor(`类别 ${v}`) };
+                                        })
+                                      : preset;
                                     setTempMapping(newMapping);
                                   }}
-                                  className="w-full text-left px-4 py-2 text-xs text-purple-600 font-bold hover:bg-purple-50 transition-colors"
+                                  className="w-full text-left px-4 py-2 text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                                 >
-                                  智能匹配已检测值
+                                  {presetName}
                                 </button>
-                              </div>
-                            </div>
-                            <button 
-                              onClick={() => setTempMapping([...tempMapping, { value: 0, label: '', color: '#94A3B8' }])}
-                              className="text-[10px] font-bold text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-1 rounded-lg transition-colors"
-                            >
-                              + 添加对应
-                            </button>
-                            <button 
-                              onClick={() => setTempMapping([])}
-                              className="text-[10px] font-bold text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded-lg transition-colors"
-                            >
-                              清空
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="max-h-64 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                          {tempMapping.map((m, idx) => (
-                            <div key={idx} className="group flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-100 shadow-sm hover:border-purple-200 transition-all">
-                              <div className="w-14">
-                                <label className="text-[9px] font-bold text-gray-400 uppercase block mb-0.5">值</label>
-                                <input
-                                  type="number"
-                                  value={m.value}
-                                  onChange={(e) => {
-                                    const newM = [...tempMapping];
-                                    newM[idx].value = parseInt(e.target.value) || 0;
-                                    setTempMapping(newM);
-                                  }}
-                                  className="w-full bg-transparent border-none p-0 text-xs font-mono focus:ring-0 text-gray-700"
-                                  placeholder="值"
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <label className="text-[9px] font-bold text-gray-400 uppercase block mb-0.5">类别名称</label>
-                                <input
-                                  type="text"
-                                  value={m.label}
-                                  onChange={(e) => {
-                                    const newM = [...tempMapping];
-                                    newM[idx].label = e.target.value;
-                                    setTempMapping(newM);
-                                  }}
-                                  className="w-full bg-transparent border-none p-0 text-xs focus:ring-0 text-gray-700 font-medium"
-                                  placeholder="输入类别名称..."
-                                />
-                              </div>
-                              <div className="flex flex-col items-center">
-                                <label className="text-[9px] font-bold text-gray-400 uppercase block mb-0.5">颜色</label>
-                                <div className="relative w-5 h-5 rounded-full overflow-hidden border border-gray-200 shadow-inner">
-                                  <input
-                                    type="color"
-                                    value={m.color}
-                                    onChange={(e) => {
-                                      const newM = [...tempMapping];
-                                      newM[idx].color = e.target.value;
-                                      setTempMapping(newM);
-                                    }}
-                                    className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer"
-                                  />
-                                </div>
-                              </div>
+                              ))}
+                              <div className="h-px bg-gray-100 my-1 mx-2" />
                               <button
-                                onClick={() => setTempMapping(tempMapping.filter((_, i) => i !== idx))}
-                                className="text-gray-300 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100"
+                                onClick={() => {
+                                  const newMapping = tempMapping.map(m => {
+                                    // Try to find match in any preset
+                                    for (const preset of Object.values(CLASSIFICATION_PRESETS)) {
+                                      const match = preset.find(p => p.value === m.value);
+                                      if (match) return { ...m, label: match.label, color: match.color };
+                                    }
+                                    return m;
+                                  });
+                                  setTempMapping(newMapping);
+                                }}
+                                className="w-full text-left px-4 py-2 text-xs text-purple-600 font-bold hover:bg-purple-50 transition-colors"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                智能匹配已检测值
                               </button>
                             </div>
-                          ))}
-                          {tempMapping.length === 0 && (
-                            <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
-                              <Sparkles className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                              <p className="text-gray-400 text-xs italic">暂无对应关系，点击“扫描像元值”或“应用预设”</p>
-                            </div>
-                          )}
+                          </div>
+                          <button 
+                            onClick={() => setTempMapping([...tempMapping, { value: 0, label: '', color: '#94A3B8' }])}
+                            className="text-[10px] font-bold text-purple-600 hover:text-purple-700 bg-purple-50 px-2 py-1 rounded-lg transition-colors"
+                          >
+                            + 添加对应
+                          </button>
+                          <button 
+                            onClick={() => setTempMapping([])}
+                            className="text-[10px] font-bold text-red-600 hover:text-red-700 bg-red-50 px-2 py-1 rounded-lg transition-colors"
+                          >
+                            清空
+                          </button>
                         </div>
                       </div>
+                      
+                      <div className="max-h-64 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                        {tempMapping.map((m, idx) => (
+                          <div key={idx} className="group flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-100 shadow-sm hover:border-purple-200 transition-all">
+                            <div className="w-14">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block mb-0.5">值</label>
+                              <input
+                                type="number"
+                                value={m.value}
+                                onChange={(e) => {
+                                  const newM = [...tempMapping];
+                                  newM[idx].value = parseInt(e.target.value) || 0;
+                                  setTempMapping(newM);
+                                }}
+                                className="w-full bg-transparent border-none p-0 text-xs font-mono focus:ring-0 text-gray-700"
+                                placeholder="值"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block mb-0.5">类别名称</label>
+                              <input
+                                type="text"
+                                value={m.label}
+                                onChange={(e) => {
+                                  const newM = [...tempMapping];
+                                  newM[idx].label = e.target.value;
+                                  setTempMapping(newM);
+                                }}
+                                className="w-full bg-transparent border-none p-0 text-xs focus:ring-0 text-gray-700 font-medium"
+                                placeholder="输入类别名称..."
+                              />
+                            </div>
+                            <div className="flex flex-col items-center">
+                              <label className="text-[9px] font-bold text-gray-400 uppercase block mb-0.5">颜色</label>
+                              <div className="relative w-5 h-5 rounded-full overflow-hidden border border-gray-200 shadow-inner">
+                                <input
+                                  type="color"
+                                  value={m.color}
+                                  onChange={(e) => {
+                                    const newM = [...tempMapping];
+                                    newM[idx].color = e.target.value;
+                                    setTempMapping(newM);
+                                  }}
+                                  className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setTempMapping(tempMapping.filter((_, i) => i !== idx))}
+                              className="text-gray-300 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                        {tempMapping.length === 0 && (
+                          <div className="text-center py-8 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                            <Sparkles className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                            <p className="text-gray-400 text-xs italic">暂无对应关系，点击“扫描像元值”或“应用预设”</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3">
@@ -1766,17 +1568,27 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">数据内容 (从 Excel 复制并粘贴到此处)</label>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-sm font-bold text-gray-700">
+                      {importType === 'matrix' ? '输入转移矩阵 (Tab/空格分隔)' : 
+                       importType === 'pairs' ? '输入地类配对 (T1,T2,面积)' : '输入三元组 (T1,T2,面积)'}
+                    </h4>
+                    <button 
+                      onClick={() => setImportText('')}
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      清空输入
+                    </button>
+                  </div>
                   <textarea
                     value={importText}
                     onChange={(e) => setImportText(e.target.value)}
+                    className="w-full h-64 p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none font-mono text-sm resize-none transition-all"
                     placeholder={
-                      importType === 'matrix' ? "耕地\t林地\t草地\n100\t20\t5\n..." :
-                      importType === 'pairs' ? "耕地\t林地\n耕地\t耕地\n林地\t草地\n..." :
-                      "耕地\t林地\t150.5\n林地\t草地\t20.3\n..."
+                      importType === 'matrix' ? "地类A\t地类B\t地类C\n100\t20\t5\n10\t150\t15\n..." :
+                      importType === 'pairs' ? "耕地,林地,50.5\n林地,草地,12.3\n..." : "1,2,50.5\n2,3,12.3\n..."
                     }
-                    className="w-full h-64 p-4 bg-gray-50 border border-gray-200 rounded-2xl font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
                   />
                 </div>
               )}
@@ -1921,19 +1733,25 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
             <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
               <button
                 onClick={() => setIsReportModalOpen(false)}
-                className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
+                disabled={isExportingPDF}
+                className="px-6 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
               >
                 取消
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  await exportReport('pdf');
                   setIsReportModalOpen(false);
-                  exportReport('pdf');
                 }}
-                className="px-8 py-2.5 bg-amber-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-200 hover:bg-amber-700 transition-all flex items-center gap-2"
+                disabled={isExportingPDF}
+                className="px-8 py-2.5 bg-amber-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-amber-200 hover:bg-amber-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Download className="w-4 h-4" />
-                生成 PDF 报告
+                {isExportingPDF ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                {isExportingPDF ? "正在生成..." : "生成 PDF 报告"}
               </button>
             </div>
           </div>
@@ -1941,8 +1759,8 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
       )}
 
       {/* Hidden Report Content for PDF Generation */}
-      <div className="fixed -left-[9999px] top-0">
-        <div ref={reportRef} className="w-[210mm] min-h-[297mm] bg-white p-[20mm] text-gray-900 font-sans">
+      <div className="absolute left-0 top-0 -z-50 opacity-0 pointer-events-none overflow-hidden h-0">
+        <div ref={reportRef} className="w-[210mm] bg-white p-[20mm] text-gray-900 font-sans">
           <div className="border-b-4 border-amber-600 pb-6 mb-8">
             <h1 className="text-4xl font-black text-gray-900 mb-2">{reportConfig.title}</h1>
             <div className="flex justify-between text-sm text-gray-500 font-medium">
@@ -2057,8 +1875,28 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
               </section>
             )}
 
+            {reportConfig.showCharts && (
+              <section>
+                <h2 className="text-xl font-bold text-gray-900 border-l-4 border-amber-600 pl-3 mb-4">4. 变化趋势图表</h2>
+                <div className="h-[300px] w-full bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart width={640} height={260} data={stats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip />
+                      <Bar dataKey="net" name="净变化" radius={[4, 4, 0, 0]}>
+                        {stats.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.net > 0 ? '#10b981' : '#ef4444'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            )}
+
             <section>
-              <h2 className="text-xl font-bold text-gray-900 border-l-4 border-amber-600 pl-3 mb-4">4. 结论分析</h2>
+              <h2 className="text-xl font-bold text-gray-900 border-l-4 border-amber-600 pl-3 mb-4">5. 结论分析</h2>
               <div className="grid grid-cols-2 gap-6">
                 <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
                   <p className="text-xs font-bold text-emerald-600 uppercase mb-2 flex items-center gap-2">
