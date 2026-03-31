@@ -49,6 +49,7 @@ export interface SpatialData {
     origin?: number[];
     resolution?: number[];
     bbox?: number[];
+    fileDirectory?: any;
   };
 }
 
@@ -624,13 +625,43 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         throw new Error('无法读取影像数据（像元数据为空）');
       }
 
+      // Extract important tags into a plain object to avoid issues with lazy getters
+      const fileDirectory = image.fileDirectory;
+      const extractedTags: any = {};
+      const tagsToExtract = [
+        'ModelPixelScale',
+        'ModelTiepoint',
+        'ModelTransformation',
+        'GeoKeyDirectory',
+        'GeoDoubleParams',
+        'GeoAsciiParams',
+        'NoData',
+        'GDAL_NODATA',
+        'GDAL_METADATA',
+        'Orientation',
+        'XResolution',
+        'YResolution',
+        'ResolutionUnit'
+      ];
+
+      tagsToExtract.forEach(tag => {
+        if (tag in fileDirectory) {
+          try {
+            extractedTags[tag] = fileDirectory[tag];
+          } catch (e) {
+            console.warn(`Failed to extract tag ${tag}:`, e);
+          }
+        }
+      });
+
       return {
         raster: raster[0] as any,
         width: image.getWidth(),
         height: image.getHeight(),
         origin: image.getOrigin(),
         resolution: image.getResolution(),
-        bbox: image.getBoundingBox()
+        bbox: image.getBoundingBox(),
+        fileDirectory: extractedTags
       };
     } catch (err: any) {
       console.error('TIF Read Error:', err);
@@ -1058,7 +1089,8 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
           metadata: {
             origin: t1Data.origin,
             resolution: t1Data.resolution,
-            bbox: t1Data.bbox
+            bbox: t1Data.bbox,
+            fileDirectory: t1Data.fileDirectory
           }
         });
       }
@@ -1081,7 +1113,8 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
           metadata: {
             origin: t1Data.origin,
             resolution: t1Data.resolution,
-            bbox: t1Data.bbox
+            bbox: t1Data.bbox,
+            fileDirectory: t1Data.fileDirectory
           }
         });
       }

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Layers, Map as MapIcon, Split, Info, ChevronRight, ChevronDown, Filter, Download } from 'lucide-react';
+import { Layers, Map as MapIcon, Split, Info, ChevronRight, ChevronDown, Filter, Download, FileType } from 'lucide-react';
+import { writeArrayBuffer } from 'geotiff';
 import { SpatialData } from './TransferMatrix';
 
 interface SpatialMapProps {
@@ -316,6 +317,129 @@ export default function SpatialMap({ data }: SpatialMapProps) {
     link.click();
   };
 
+  const downloadChangeMapTiff = () => {
+    if (!data.t1 || !data.t2 || !data.metadata?.fileDirectory) {
+      alert('缺少必要的影像元数据，无法导出 GeoTIFF');
+      return;
+    }
+
+    const width = data.width;
+    const height = data.height;
+    
+    // 创建变化栅格数据，并匹配原始数据类型以确保一致性
+    const originalRaster = data.t1;
+    let changeRaster: any;
+    let bitsPerSample = [8];
+    let sampleFormat = [1];
+
+    if (originalRaster instanceof Uint16Array) {
+      changeRaster = new Uint16Array(width * height);
+      bitsPerSample = [16];
+    } else if (originalRaster instanceof Int16Array) {
+      changeRaster = new Int16Array(width * height);
+      bitsPerSample = [16];
+      sampleFormat = [2];
+    } else if (originalRaster instanceof Uint32Array) {
+      changeRaster = new Uint32Array(width * height);
+      bitsPerSample = [32];
+    } else if (originalRaster instanceof Int32Array) {
+      changeRaster = new Int32Array(width * height);
+      bitsPerSample = [32];
+      sampleFormat = [2];
+    } else if (originalRaster instanceof Float32Array) {
+      changeRaster = new Float32Array(width * height);
+      bitsPerSample = [32];
+      sampleFormat = [3];
+    } else if (originalRaster instanceof Float64Array) {
+      changeRaster = new Float64Array(width * height);
+      bitsPerSample = [64];
+      sampleFormat = [3];
+    } else {
+      changeRaster = new Uint8Array(width * height);
+    }
+
+    for (let i = 0; i < data.t1.length; i++) {
+      const v1 = data.t1[i];
+      const v2 = data.t2[i];
+      
+      // 0 通常代表 NoData
+      if (v1 === 0 || v2 === 0) {
+        changeRaster[i] = 0;
+      } else if (v1 === v2) {
+        changeRaster[i] = 0; // 无变化
+      } else {
+        changeRaster[i] = v2; // 变化为 T2 的类别
+      }
+    }
+
+    try {
+      // 准备元数据，保留原始坐标系标签
+      const originalMetadata = data.metadata.fileDirectory || {};
+      
+      // 基础元数据
+      const metadata: any = {
+        width,
+        height,
+        PhotometricInterpretation: 1, // BlackIsZero
+        SamplesPerPixel: 1,
+        BitsPerSample: bitsPerSample,
+        SampleFormat: sampleFormat,
+        GDAL_NODATA: originalMetadata.GDAL_NODATA || (originalMetadata.NoData !== undefined ? String(originalMetadata.NoData) : "0")
+      };
+
+      // 复制所有空间参考相关的标签 (使用数字 ID 以提高 QGIS 兼容性)
+      // 33550: ModelPixelScale
+      // 33922: ModelTiepoint
+      // 34264: ModelTransformation
+      // 34735: GeoKeyDirectory
+      // 34736: GeoDoubleParams
+      // 34737: GeoAsciiParams
+      // 274: Orientation
+      // 282: XResolution
+      // 283: YResolution
+      // 296: ResolutionUnit
+      
+      const spatialTags: Record<string, number> = {
+        'ModelPixelScale': 33550,
+        'ModelTiepoint': 33922,
+        'ModelTransformation': 34264,
+        'GeoKeyDirectory': 34735,
+        'GeoDoubleParams': 34736,
+        'GeoAsciiParams': 34737,
+        'Orientation': 274,
+        'XResolution': 282,
+        'YResolution': 283,
+        'ResolutionUnit': 296
+      };
+
+      Object.entries(spatialTags).forEach(([name, tagId]) => {
+        if (originalMetadata[name] !== undefined) {
+          // 确保数值型标签是 TypedArray，这对 QGIS 识别至关重要
+          const val = originalMetadata[name];
+          if (Array.isArray(val)) {
+            if (tagId === 34735) metadata[tagId] = new Uint16Array(val);
+            else if (tagId === 34736 || tagId === 33550 || tagId === 33922 || tagId === 34264) metadata[tagId] = new Float64Array(val);
+            else metadata[tagId] = val;
+          } else {
+            metadata[tagId] = val;
+          }
+        }
+      });
+
+      const arrayBuffer = writeArrayBuffer(changeRaster, metadata);
+      const blob = new Blob([arrayBuffer], { type: 'image/tiff' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `change_map_${new Date().toISOString().split('T')[0]}.tif`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export TIFF Error:', err);
+      alert('导出 GeoTIFF 失败，请检查控制台日志');
+    }
+  };
+
   const categories = useMemo(() => {
     return Object.entries(data.mapping).map(([val, label]) => {
       const v = parseInt(val);
@@ -369,7 +493,16 @@ export default function SpatialMap({ data }: SpatialMapProps) {
             title="下载当前视图为高清图片"
           >
             <Download className="w-4 h-4" />
-            下载变化图
+            下载 PNG
+          </button>
+
+          <button 
+            onClick={downloadChangeMapTiff}
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-sm"
+            title="下载变化图为 GeoTIFF 格式 (保留坐标系)"
+          >
+            <FileType className="w-4 h-4" />
+            下载 TIF
           </button>
         </div>
       </div>
