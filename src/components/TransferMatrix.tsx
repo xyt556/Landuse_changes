@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useId, ReactNode } from 'react';
-import { Plus, Trash2, RefreshCw, Upload, X, Check, AlertCircle, FileType, Settings2, Download, FileText, Table as TableIcon, HelpCircle, Sparkles, Info, ChevronDown, FileJson, FileSpreadsheet, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Upload, X, Check, AlertCircle, FileType, Settings2, Download, FileText, Table as TableIcon, HelpCircle, Sparkles, Info, ChevronDown, FileJson, FileSpreadsheet, Image as ImageIcon, Undo2, Redo2, GripHorizontal, GripVertical } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { fromArrayBuffer } from 'geotiff';
@@ -7,6 +7,25 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -55,6 +74,18 @@ const DEFAULT_COLORS: Record<string, string> = {
 
 const getInitialColor = (label: string) => {
   if (label === '未分类' || label === '其他') return '#94A3B8';
+  
+  const l = label.toLowerCase();
+  
+  // Try to find match in any preset first
+  for (const preset of Object.values(CLASSIFICATION_PRESETS)) {
+    const match = preset.find(p => 
+      p.label.toLowerCase().includes(l) || 
+      l.includes(p.label.toLowerCase())
+    );
+    if (match) return match.color;
+  }
+
   const colors: Record<string, string> = {
     '耕地': '#EAB308',
     '林地': '#22C55E',
@@ -66,10 +97,19 @@ const getInitialColor = (label: string) => {
     '水体': '#3B82F6',
     '裸地': '#F59E0B',
     '湿地': '#06B6D4',
+    'forest': '#22C55E',
+    'grass': '#84CC16',
+    'crop': '#EAB308',
+    'water': '#3B82F6',
+    'urban': '#EF4444',
+    'bare': '#F59E0B',
+    'wetland': '#06B6D4',
   };
+  
   for (const key in colors) {
-    if (label.includes(key)) return colors[key];
+    if (l.includes(key.toLowerCase())) return colors[key];
   }
+
   // Generate a deterministic random color based on label string
   let hash = 0;
   for (let i = 0; i < label.length; i++) {
@@ -232,6 +272,69 @@ const AccessibleTooltip = ({ children, content }: { children: ReactNode, content
   );
 };
 
+interface SortableHeaderProps {
+  key?: string | number;
+  id: string;
+  label: string;
+  color: string;
+  onRename: (name: string) => void;
+  onRemove: () => void;
+  onColorChange: (color: string) => void;
+}
+
+const SortableHeader = ({ id, label, color, onRename, onRemove, onColorChange }: SortableHeaderProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 100 : 1,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <th 
+      ref={setNodeRef} 
+      style={style} 
+      className={cn(
+        "p-3 border-b border-gray-200 min-w-[120px] transition-colors",
+        isDragging ? "bg-blue-50" : "bg-gray-50"
+      )}
+    >
+      <div className="flex items-center gap-2 group">
+        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-600 p-1 -ml-1">
+          <GripVertical className="w-3 h-3" />
+        </div>
+        <input
+          type="color"
+          value={color}
+          onChange={(e) => onColorChange(e.target.value)}
+          className="w-4 h-4 rounded-full border-none p-0 cursor-pointer overflow-hidden flex-shrink-0"
+          title="点击修改颜色"
+        />
+        <input
+          value={label}
+          onChange={(e) => onRename(e.target.value)}
+          className="bg-transparent border-none focus:ring-0 font-medium text-gray-700 w-full text-sm"
+        />
+        <button
+          onClick={onRemove}
+          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </th>
+  );
+};
+
 export default function TransferMatrix({ onDataChange, onFullDataChange, onSpatialDataChange, onShowGuide }: TransferMatrixProps) {
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [categoryColors, setCategoryColors] = useState<string[]>(() => 
@@ -280,6 +383,75 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
 
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState<string | null>(null);
+
+  // Undo/Redo History
+  const [history, setHistory] = useState<{ categories: string[], colors: string[], matrix: number[][] }[]>([]);
+  const [redoStack, setRedoStack] = useState<{ categories: string[], colors: string[], matrix: number[][] }[]>([]);
+
+  const pushToHistory = (cats: string[], colors: string[], mat: number[][]) => {
+    setHistory(prev => [...prev, { categories: [...cats], colors: [...colors], matrix: mat.map(r => [...r]) }]);
+    setRedoStack([]); // Clear redo stack on new action
+  };
+
+  const undo = () => {
+    if (history.length === 0) return;
+    const lastState = history[history.length - 1];
+    setRedoStack(prev => [...prev, { categories: [...categories], colors: [...categoryColors], matrix: matrix.map(r => [...r]) }]);
+    
+    setCategories(lastState.categories);
+    setCategoryColors(lastState.colors);
+    setMatrix(lastState.matrix);
+    updateSankey(lastState.categories, lastState.matrix, lastState.colors);
+    
+    setHistory(prev => prev.slice(0, -1));
+  };
+
+  const redo = () => {
+    if (redoStack.length === 0) return;
+    const nextState = redoStack[redoStack.length - 1];
+    setHistory(prev => [...prev, { categories: [...categories], colors: [...categoryColors], matrix: matrix.map(r => [...r]) }]);
+    
+    setCategories(nextState.categories);
+    setCategoryColors(nextState.colors);
+    setMatrix(nextState.matrix);
+    updateSankey(nextState.categories, nextState.matrix, nextState.colors);
+    
+    setRedoStack(prev => prev.slice(0, -1));
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = categories.indexOf(active.id as string);
+      const newIndex = categories.indexOf(over.id as string);
+
+      pushToHistory(categories, categoryColors, matrix);
+
+      const newCats = arrayMove(categories, oldIndex, newIndex) as string[];
+      const newColors = arrayMove(categoryColors, oldIndex, newIndex) as string[];
+      
+      // Reorder matrix rows and columns
+      let newMatrix = arrayMove(matrix, oldIndex, newIndex) as number[][];
+      newMatrix = newMatrix.map(row => arrayMove(row, oldIndex, newIndex) as number[]);
+
+      setCategories(newCats);
+      setCategoryColors(newColors);
+      setMatrix(newMatrix);
+      updateSankey(newCats, newMatrix, newColors);
+    }
+  };
 
   const readTifData = async (file: File) => {
     try {
@@ -358,6 +530,22 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
   };
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [history, redoStack, categories, categoryColors, matrix]);
+
+  useEffect(() => {
     const updateThumbnails = async () => {
       const newThumbs: { t1?: string; t2?: string } = { ...tifThumbnails };
       const newMetadata: { t1?: any; t2?: any } = { ...tifMetadata };
@@ -387,7 +575,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         try {
           newMetadata.t2 = { ...newMetadata.t2, loading: true, error: undefined };
           setTifMetadata({ ...newMetadata });
-
+          
           const data = await readTifData(tifFiles.t2);
           newThumbs.t2 = generateThumbnail(data.raster, data.width, data.height) || undefined;
           newMetadata.t2 = { width: data.width, height: data.height, loading: false };
@@ -408,6 +596,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         setTifMetadata(newMetadata);
       }
     };
+
     updateThumbnails();
   }, [tifFiles]);
 
@@ -493,9 +682,12 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
           Array(newCats.length).fill(0).map((_, j) => (rawMat[i]?.[j] || 0))
         );
 
+        const newColors = newCats.map(cat => getInitialColor(cat));
+        pushToHistory(categories, categoryColors, matrix);
         setCategories(newCats);
+        setCategoryColors(newColors);
         setMatrix(newMat);
-        updateSankey(newCats, newMat);
+        updateSankey(newCats, newMat, newColors);
       } 
       else if (importType === 'pairs') {
         // Two columns: T1_Category, T2_Category
@@ -514,9 +706,12 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         const newCats = Array.from(catSet).sort();
         const newMat = newCats.map(r => newCats.map(c => counts[r]?.[c] || 0));
         
+        const newColors = newCats.map(cat => getInitialColor(cat));
+        pushToHistory(categories, categoryColors, matrix);
         setCategories(newCats);
+        setCategoryColors(newColors);
         setMatrix(newMat);
-        updateSankey(newCats, newMat);
+        updateSankey(newCats, newMat, newColors);
       }
       else if (importType === 'triplets') {
         // Three columns: T1_Category, T2_Category, Area
@@ -536,9 +731,12 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         const newCats = Array.from(catSet).sort();
         const newMat = newCats.map(r => newCats.map(c => counts[r]?.[c] || 0));
         
+        const newColors = newCats.map(cat => getInitialColor(cat));
+        pushToHistory(categories, categoryColors, matrix);
         setCategories(newCats);
+        setCategoryColors(newColors);
         setMatrix(newMat);
-        updateSankey(newCats, newMat);
+        updateSankey(newCats, newMat, newColors);
       }
 
       setIsImportOpen(false);
@@ -625,6 +823,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         return m ? m.color : getInitialColor(c);
       });
 
+      pushToHistory(categories, categoryColors, matrix);
       setCategories(newCats);
       setCategoryColors(newColors);
       setMatrix(newMat);
@@ -902,6 +1101,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
   };
 
   const handleColorChange = (index: number, color: string) => {
+    pushToHistory(categories, categoryColors, matrix);
     const newColors = [...categoryColors];
     newColors[index] = color;
     setCategoryColors(newColors);
@@ -909,6 +1109,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
   };
 
   const addCategory = () => {
+    pushToHistory(categories, categoryColors, matrix);
     const newName = `新类别 ${categories.length + 1}`;
     const newCats = [...categories, newName];
     const newColors = [...categoryColors, getInitialColor(newName)];
@@ -921,6 +1122,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
 
   const removeCategory = (index: number) => {
     if (categories.length <= 2) return;
+    pushToHistory(categories, categoryColors, matrix);
     const newCats = categories.filter((_, i) => i !== index);
     const newColors = categoryColors.filter((_, i) => i !== index);
     const newMatrix = matrix
@@ -933,10 +1135,28 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
   };
 
   const handleCategoryRename = (index: number, name: string) => {
+    // No history for rename to avoid too many entries
     const newCats = [...categories];
     newCats[index] = name;
     setCategories(newCats);
     updateSankey(newCats, matrix, categoryColors);
+  };
+
+  const applyPresetToCurrent = () => {
+    pushToHistory(categories, categoryColors, matrix);
+    const newColors = categories.map((cat, i) => {
+      // Try to find match in any preset
+      for (const preset of Object.values(CLASSIFICATION_PRESETS)) {
+        const match = preset.find(p => 
+          p.label.toLowerCase().includes(cat.toLowerCase()) || 
+          cat.toLowerCase().includes(p.label.toLowerCase())
+        );
+        if (match) return match.color;
+      }
+      return categoryColors[i];
+    });
+    setCategoryColors(newColors);
+    updateSankey(categories, matrix, newColors);
   };
 
   const stats = useMemo(() => {
@@ -1019,6 +1239,35 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
             <p className="text-sm text-gray-500">行: T1 (初始) | 列: T2 (末期)</p>
           </div>
           <div className="flex gap-2">
+            <div className="flex items-center gap-1 mr-2 border-r border-gray-200 pr-2">
+              <AccessibleTooltip content="撤销 (Ctrl+Z)">
+                <button
+                  onClick={undo}
+                  disabled={history.length === 0}
+                  className="p-1.5 text-gray-500 hover:text-blue-600 disabled:opacity-30 transition-colors"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
+              </AccessibleTooltip>
+              <AccessibleTooltip content="重做 (Ctrl+Y)">
+                <button
+                  onClick={redo}
+                  disabled={redoStack.length === 0}
+                  className="p-1.5 text-gray-500 hover:text-blue-600 disabled:opacity-30 transition-colors"
+                >
+                  <Redo2 className="w-4 h-4" />
+                </button>
+              </AccessibleTooltip>
+            </div>
+            <AccessibleTooltip content="根据地类名称自动匹配预设颜色">
+              <button
+                onClick={applyPresetToCurrent}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                智能配色
+              </button>
+            </AccessibleTooltip>
             <AccessibleTooltip content="生成包含矩阵、统计表和图表的 PDF 报告">
               <button
                 onClick={() => setIsReportModalOpen(true)}
@@ -1061,75 +1310,74 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="p-3 border-b border-r border-gray-200 font-medium text-gray-400 w-32">T1 \ T2</th>
-                {categories.map((cat, i) => (
-                  <th key={i} className="p-3 border-b border-gray-200 min-w-[120px]">
-                    <div className="flex items-center gap-2 group">
-                      <input
-                        type="color"
-                        value={categoryColors[i]}
-                        onChange={(e) => handleColorChange(i, e.target.value)}
-                        className="w-4 h-4 rounded-full border-none p-0 cursor-pointer overflow-hidden flex-shrink-0"
-                        title="点击修改颜色"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <table className="w-full text-sm text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="p-3 border-b border-r border-gray-200 font-medium text-gray-400 w-32">T1 \ T2</th>
+                  <SortableContext 
+                    items={categories}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {categories.map((cat, i) => (
+                      <SortableHeader 
+                        key={cat} 
+                        id={cat}
+                        label={cat}
+                        color={categoryColors[i]}
+                        onRename={(name) => handleCategoryRename(i, name)}
+                        onRemove={() => removeCategory(i)}
+                        onColorChange={(color) => handleColorChange(i, color)}
                       />
-                      <input
-                        value={cat}
-                        onChange={(e) => handleCategoryRename(i, e.target.value)}
-                        className="bg-transparent border-none focus:ring-0 font-medium text-gray-700 w-full"
-                      />
-                      <button
-                        onClick={() => removeCategory(i)}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </th>
+                    ))}
+                  </SortableContext>
+                  <th className="p-3 border-b border-l border-gray-200 bg-gray-100/50 font-bold text-gray-900">T1 总计</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matrix.map((row, r) => (
+                  <tr key={r} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="p-3 border-r border-gray-200 bg-gray-50 font-medium text-gray-700 flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: categoryColors[r] }} />
+                      {categories[r]}
+                    </td>
+                    {row.map((val, c) => (
+                      <td key={c} className={cn(
+                        "p-1 border border-gray-100",
+                        r === c ? "bg-blue-50/30" : "bg-white"
+                      )}>
+                        <input
+                          type="number"
+                          value={val ? Number(val.toFixed(2)) : ''}
+                          onChange={(e) => handleCellChange(r, c, e.target.value)}
+                          className="w-full p-2 bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded text-right"
+                          placeholder="0"
+                        />
+                      </td>
+                    ))}
+                    <td className="p-3 border-l border-gray-200 bg-gray-100/30 font-bold text-right text-gray-900">
+                      {Number(row.reduce((a, b) => a + b, 0).toFixed(2)).toLocaleString()}
+                    </td>
+                  </tr>
                 ))}
-                <th className="p-3 border-b border-l border-gray-200 bg-gray-100/50 font-bold text-gray-900">T1 总计</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matrix.map((row, r) => (
-                <tr key={r} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="p-3 border-r border-gray-200 bg-gray-50 font-medium text-gray-700">
-                    {categories[r]}
-                  </td>
-                  {row.map((val, c) => (
-                    <td key={c} className={cn(
-                      "p-1 border border-gray-100",
-                      r === c ? "bg-blue-50/30" : "bg-white"
-                    )}>
-                      <input
-                        type="number"
-                        value={val ? Number(val.toFixed(2)) : ''}
-                        onChange={(e) => handleCellChange(r, c, e.target.value)}
-                        className="w-full p-2 bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded text-right"
-                        placeholder="0"
-                      />
+                <tr className="bg-gray-100/50 font-bold">
+                  <td className="p-3 border-r border-gray-200">T2 总计</td>
+                  {categories.map((_, j) => (
+                    <td key={j} className="p-3 text-right text-gray-900">
+                      {Number(matrix.reduce((sum, row) => sum + row[j], 0).toFixed(2)).toLocaleString()}
                     </td>
                   ))}
-                  <td className="p-3 border-l border-gray-200 bg-gray-100/30 font-bold text-right text-gray-900">
-                    {Number(row.reduce((a, b) => a + b, 0).toFixed(2)).toLocaleString()}
+                  <td className="p-3 border-l border-gray-200 bg-gray-200/50 text-right text-blue-600">
+                    {Number(matrix.flat().reduce((a, b) => a + b, 0).toFixed(2)).toLocaleString()}
                   </td>
                 </tr>
-              ))}
-              <tr className="bg-gray-100/50 font-bold">
-                <td className="p-3 border-r border-gray-200">T2 总计</td>
-                {categories.map((_, j) => (
-                  <td key={j} className="p-3 text-right text-gray-900">
-                    {Number(matrix.reduce((sum, row) => sum + row[j], 0).toFixed(2)).toLocaleString()}
-                  </td>
-                ))}
-                <td className="p-3 border-l border-gray-200 bg-gray-200/50 text-right text-blue-600">
-                  {Number(matrix.flat().reduce((a, b) => a + b, 0).toFixed(2)).toLocaleString()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </DndContext>
         </div>
       </div>
 
