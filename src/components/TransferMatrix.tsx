@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useId, ReactNode } from 'react';
-import { Plus, Trash2, RefreshCw, Upload, X, Check, AlertCircle, FileType, Settings2, Download, FileText, Table as TableIcon, HelpCircle, Sparkles, Info, ChevronDown, FileJson, FileSpreadsheet, Image as ImageIcon, Undo2, Redo2, GripHorizontal, GripVertical } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Upload, X, Check, AlertCircle, FileType, Settings2, Download, FileText, Table as TableIcon, HelpCircle, Sparkles, Info, ChevronDown, FileJson, FileSpreadsheet, Image as ImageIcon, Undo2, Redo2, GripHorizontal, GripVertical, Map as MapIcon } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { fromArrayBuffer } from 'geotiff';
@@ -156,6 +156,89 @@ const CLASSIFICATION_PRESETS: Record<string, { value: number; label: string; col
     { value: 80, label: '人造地表 (Impervious)', color: '#FF0000' },
     { value: 90, label: '裸地 (Bareland)', color: '#F4A460' },
     { value: 100, label: '雪/冰 (Snow/Ice)', color: '#FFFFFF' },
+  ],
+  'IGBP (MODIS)': [
+    { value: 1, label: '常绿针叶林 (Evergreen Needleleaf Forest)', color: '#006400' },
+    { value: 2, label: '常绿阔叶林 (Evergreen Broadleaf Forest)', color: '#008000' },
+    { value: 3, label: '落叶针叶林 (Deciduous Needleleaf Forest)', color: '#228B22' },
+    { value: 4, label: '落叶阔叶林 (Deciduous Broadleaf Forest)', color: '#32CD32' },
+    { value: 5, label: '混交林 (Mixed Forest)', color: '#556B2F' },
+    { value: 6, label: '郁闭灌丛 (Closed Shrublands)', color: '#8B4513' },
+    { value: 7, label: '稀疏灌丛 (Open Shrublands)', color: '#A0522D' },
+    { value: 8, label: '多木萨瓦纳 (Woody Savannas)', color: '#BDB76B' },
+    { value: 9, label: '萨瓦纳 (Savannas)', color: '#DAA520' },
+    { value: 10, label: '草地 (Grasslands)', color: '#ADFF2F' },
+    { value: 11, label: '永久湿地 (Permanent Wetlands)', color: '#00FFFF' },
+    { value: 12, label: '耕地 (Croplands)', color: '#FFFF00' },
+    { value: 13, label: '城市建筑 (Urban/Built-up)', color: '#FF0000' },
+    { value: 14, label: '耕地/自然植被 (Cropland/Natural Veg)', color: '#DAA520' },
+    { value: 15, label: '冰雪 (Snow/Ice)', color: '#FFFFFF' },
+    { value: 16, label: '裸地 (Barren)', color: '#F4A460' },
+    { value: 17, label: '水体 (Water Bodies)', color: '#0000FF' },
+  ],
+  'Corine Land Cover (CLC)': [
+    { value: 111, label: '连续城市建筑 (Continuous urban fabric)', color: '#E6004D' },
+    { value: 112, label: '非连续城市建筑 (Discontinuous urban fabric)', color: '#FF0000' },
+    { value: 121, label: '工商业设施 (Industrial or commercial units)', color: '#CC4DF2' },
+    { value: 122, label: '道路铁路网络 (Road and rail networks)', color: '#CC0000' },
+    { value: 123, label: '港口设施 (Port areas)', color: '#E6CCCC' },
+    { value: 124, label: '机场 (Airports)', color: '#E6CCE6' },
+    { value: 131, label: '矿产提取地 (Mineral extraction sites)', color: '#A600CC' },
+    { value: 132, label: '垃圾填埋场 (Dump sites)', color: '#A64D00' },
+    { value: 133, label: '建筑工地 (Construction sites)', color: '#FF4DFF' },
+    { value: 141, label: '城市绿地 (Green urban areas)', color: '#FFA6FF' },
+    { value: 142, label: '体育休闲设施 (Sport and leisure facilities)', color: '#FFE6FF' },
+    { value: 211, label: '非灌溉耕地 (Non-irrigated arable land)', color: '#FFFFA8' },
+    { value: 212, label: '永久灌溉耕地 (Permanently irrigated land)', color: '#FFFF00' },
+    { value: 213, label: '水稻田 (Rice fields)', color: '#E6E600' },
+    { value: 221, label: '葡萄园 (Vineyards)', color: '#E68000' },
+    { value: 222, label: '果园 (Fruit trees)', color: '#F2A64D' },
+    { value: 223, label: '橄榄园 (Olive groves)', color: '#E6A600' },
+    { value: 231, label: '牧场 (Pastures)', color: '#E6E64D' },
+    { value: 241, label: '年度作物 (Annual crops)', color: '#FFE64D' },
+    { value: 242, label: '复杂耕作模式 (Complex cultivation patterns)', color: '#FFE6A6' },
+    { value: 243, label: '自然植被耕地 (Land with natural vegetation)', color: '#E6E6A6' },
+    { value: 244, label: '农林业 (Agro-forestry areas)', color: '#F2CCA6' },
+    { value: 311, label: '阔叶林 (Broad-leaved forest)', color: '#80FF00' },
+    { value: 312, label: '针叶林 (Coniferous forest)', color: '#00A600' },
+    { value: 313, label: '混交林 (Mixed forest)', color: '#4DFF00' },
+    { value: 321, label: '天然草原 (Natural grasslands)', color: '#CCF24D' },
+    { value: 322, label: '荒原和石南地 (Moors and heathland)', color: '#A6FF80' },
+    { value: 323, label: '硬叶植被 (Sclerophyllous vegetation)', color: '#A6E64D' },
+    { value: 324, label: '过渡林地灌木 (Transitional woodland-shrub)', color: '#A6F200' },
+    { value: 331, label: '海滩沙丘 (Beaches, dunes, sands)', color: '#E6E6E6' },
+    { value: 332, label: '裸岩 (Bare rocks)', color: '#CCCCCC' },
+    { value: 333, label: '稀疏植被地 (Sparsely vegetated areas)', color: '#CCFFCC' },
+    { value: 334, label: '火烧迹地 (Burnt areas)', color: '#000000' },
+    { value: 335, label: '冰川和永久积雪 (Glaciers and perpetual snow)', color: '#A6E6CC' },
+    { value: 411, label: '内陆沼泽 (Inland marshes)', color: '#A6A6FF' },
+    { value: 412, label: '泥炭沼泽 (Peat bogs)', color: '#4D4DFF' },
+    { value: 421, label: '盐沼 (Salt marshes)', color: '#CCCCFF' },
+    { value: 422, label: '盐田 (Salines)', color: '#E6E6FF' },
+    { value: 423, label: '潮间带 (Intertidal flats)', color: '#A6A6E6' },
+    { value: 511, label: '水道 (Water courses)', color: '#00CCF2' },
+    { value: 512, label: '水体 (Water bodies)', color: '#80F2FF' },
+    { value: 521, label: '沿海泻湖 (Coastal lagoons)', color: '#00FFA6' },
+    { value: 522, label: '河口 (Estuaries)', color: '#A6FFE6' },
+    { value: 523, label: '海洋 (Sea and ocean)', color: '#E6F2FF' },
+  ],
+  'NLCD (USA)': [
+    { value: 11, label: '开放水域 (Open Water)', color: '#476BA0' },
+    { value: 12, label: '冰雪 (Perennial Ice/Snow)', color: '#D1DDF9' },
+    { value: 21, label: '低强度开发 (Developed, Open Space)', color: '#DDC9C9' },
+    { value: 22, label: '中低强度开发 (Developed, Low Intensity)', color: '#D89382' },
+    { value: 23, label: '中高强度开发 (Developed, Medium Intensity)', color: '#ED0000' },
+    { value: 24, label: '高强度开发 (Developed, High Intensity)', color: '#AA0000' },
+    { value: 31, label: '裸地 (Barren Land)', color: '#B2ADA3' },
+    { value: 41, label: '落叶林 (Deciduous Forest)', color: '#68AB5F' },
+    { value: 42, label: '常绿林 (Evergreen Forest)', color: '#1C5F2C' },
+    { value: 43, label: '混交林 (Mixed Forest)', color: '#B5C58B' },
+    { value: 52, label: '灌木 (Shrub/Scrub)', color: '#CCB879' },
+    { value: 71, label: '草地 (Grassland/Herbaceous)', color: '#DFDFC2' },
+    { value: 81, label: '牧草 (Pasture/Hay)', color: '#DCD939' },
+    { value: 82, label: '耕地 (Cultivated Crops)', color: '#AB6C28' },
+    { value: 90, label: '木本湿地 (Woody Wetlands)', color: '#B8D9EB' },
+    { value: 95, label: '草本湿地 (Emergent Herbaceous Wetlands)', color: '#6C9FB8' },
   ]
 };
 
@@ -237,6 +320,81 @@ const ExportDropdown = ({
               导出为 PDF 报告
             </button>
           )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AddCategoryDropdown = ({ 
+  onAdd, 
+  className 
+}: { 
+  onAdd: (label?: string, color?: string) => void, 
+  className?: string 
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className="flex items-center">
+        <button
+          onClick={() => onAdd()}
+          className={cn(
+            "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-l-lg transition-colors border-r border-green-200",
+            className
+          )}
+        >
+          <Plus className="w-4 h-4" />
+          添加类别
+        </button>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={cn(
+            "flex items-center px-1.5 py-1.5 text-sm font-medium rounded-r-lg transition-colors",
+            className
+          )}
+        >
+          <ChevronDown className={cn("w-4 h-4 transition-transform", isOpen && "rotate-180")} />
+        </button>
+      </div>
+      
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[110] animate-in fade-in slide-in-from-top-2 duration-200 max-h-96 overflow-y-auto custom-scrollbar">
+          <div className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+            应用预设
+          </div>
+          {Object.entries(CLASSIFICATION_PRESETS).map(([name, items]) => (
+            <div key={name} className="mt-2">
+              <div className="px-4 py-1 text-xs font-medium text-gray-500 bg-gray-50">
+                {name}
+              </div>
+              {items.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => { onAdd(item.label, item.color); setIsOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors group"
+                >
+                  <div 
+                    className="w-3 h-3 rounded-full shadow-sm group-hover:scale-110 transition-transform" 
+                    style={{ backgroundColor: item.color }} 
+                  />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -380,6 +538,8 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
     t2?: { width: number; height: number; error?: string; loading?: boolean } 
   }>({});
   const [tifStats, setTifStats] = useState<{ t1?: Record<number, number>; t2?: Record<number, number> }>({});
+  const [changeMapThumbnail, setChangeMapThumbnail] = useState<string | null>(null);
+  const [tifData, setTifData] = useState<{ t1?: any; t2?: any }>({});
 
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState<string | null>(null);
@@ -478,7 +638,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
     }
   };
 
-  const generateThumbnail = (raster: any, width: number, height: number) => {
+  const generateThumbnail = (raster: any, width: number, height: number, colors?: Record<number, string>) => {
     const maxDim = 160;
     const scale = Math.min(maxDim / width, maxDim / height);
     const thumbW = Math.floor(width * scale);
@@ -508,7 +668,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         }
 
         if (!colorCache[val]) {
-          const hex = getInitialColor(`类别 ${val}`);
+          const hex = colors?.[val] || getInitialColor(`类别 ${val}`);
           colorCache[val] = {
             r: parseInt(hex.slice(1, 3), 16),
             g: parseInt(hex.slice(3, 5), 16),
@@ -524,7 +684,66 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         data[idx + 3] = 255;
       }
     }
+    ctx.putImageData(imageData, 0, 0);
+    return canvas.toDataURL();
+  };
 
+  const generateChangeMap = (r1: any, r2: any, width: number, height: number, mapping: Record<number, { label: string, color: string }>) => {
+    const maxDim = 320; // Larger for change map
+    const scale = Math.min(maxDim / width, maxDim / height);
+    const thumbW = Math.floor(width * scale);
+    const thumbH = Math.floor(height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = thumbW;
+    canvas.height = thumbH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const imageData = ctx.createImageData(thumbW, thumbH);
+    const data = imageData.data;
+
+    const colorCache: Record<number, { r: number, g: number, b: number }> = {};
+    
+    for (let y = 0; y < thumbH; y++) {
+      for (let x = 0; x < thumbW; x++) {
+        const sourceX = Math.floor(x / scale);
+        const sourceY = Math.floor(y / scale);
+        const idx_raster = sourceY * width + sourceX;
+        const v1 = r1[idx_raster];
+        const v2 = r2[idx_raster];
+        
+        const idx = (y * thumbW + x) * 4;
+
+        if (v1 === noDataValue || v2 === noDataValue) {
+          data[idx + 3] = 0;
+          continue;
+        }
+
+        if (v1 === v2) {
+          // No change - show in light gray or very muted color
+          data[idx] = 240;
+          data[idx + 1] = 240;
+          data[idx + 2] = 240;
+          data[idx + 3] = 100; // Semi-transparent
+        } else {
+          // Change - show in new category color
+          if (!colorCache[v2]) {
+            const hex = mapping[v2]?.color || getInitialColor(`类别 ${v2}`);
+            colorCache[v2] = {
+              r: parseInt(hex.slice(1, 3), 16),
+              g: parseInt(hex.slice(3, 5), 16),
+              b: parseInt(hex.slice(5, 7), 16)
+            };
+          }
+          const color = colorCache[v2];
+          data[idx] = color.r;
+          data[idx + 1] = color.g;
+          data[idx + 2] = color.b;
+          data[idx + 3] = 255;
+        }
+      }
+    }
     ctx.putImageData(imageData, 0, 0);
     return canvas.toDataURL();
   };
@@ -823,6 +1042,27 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         return m ? m.color : getInitialColor(c);
       });
 
+      // Generate Change Map Visualization
+      const changeMap = generateChangeMap(t1Array, t2Array, t1Data.width, t1Data.height, finalMappingWithColor);
+      setChangeMapThumbnail(changeMap);
+      setTifData({ t1: t1Data, t2: t2Data });
+
+      if (onSpatialDataChange) {
+        onSpatialDataChange({
+          t1: t1Array,
+          t2: t2Array,
+          width: t1Data.width,
+          height: t1Data.height,
+          mapping: finalMapping,
+          colors: Object.fromEntries(Object.entries(finalMappingWithColor).map(([k, v]) => [k, v.color])),
+          metadata: {
+            origin: t1Data.origin,
+            resolution: t1Data.resolution,
+            bbox: t1Data.bbox
+          }
+        });
+      }
+
       pushToHistory(categories, categoryColors, matrix);
       setCategories(newCats);
       setCategoryColors(newColors);
@@ -1108,11 +1348,11 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
     updateSankey(categories, matrix, newColors);
   };
 
-  const addCategory = () => {
+  const addCategory = (label?: string, color?: string) => {
     pushToHistory(categories, categoryColors, matrix);
-    const newName = `新类别 ${categories.length + 1}`;
+    const newName = label || `新类别 ${categories.length + 1}`;
     const newCats = [...categories, newName];
-    const newColors = [...categoryColors, getInitialColor(newName)];
+    const newColors = [...categoryColors, color || getInitialColor(newName)];
     const newMatrix = [...matrix.map(row => [...row, 0]), Array(newCats.length).fill(0)];
     setCategories(newCats);
     setCategoryColors(newColors);
@@ -1299,13 +1539,10 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
               <RefreshCw className="w-4 h-4" />
               加载示例
             </button>
-            <button
-              onClick={addCategory}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              添加类别
-            </button>
+            <AddCategoryDropdown
+              onAdd={addCategory}
+              className="text-green-600 bg-green-50 hover:bg-green-100"
+            />
           </div>
         </div>
         
@@ -1575,6 +1812,37 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
                       {tifStats.t2 && renderTifChart(tifStats.t2, "末期")}
                     </div>
                   </div>
+
+                  {changeMapThumbnail && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-purple-600 uppercase tracking-wider flex items-center gap-2">
+                        <MapIcon className="w-3 h-3" />
+                        空间变化预览 (Spatial Change Map)
+                      </label>
+                      <div className="bg-gray-900 rounded-2xl p-4 flex flex-col items-center gap-4 border border-gray-800 shadow-inner">
+                        <div className="relative group/map">
+                          <img 
+                            src={changeMapThumbnail} 
+                            className="max-w-full h-auto rounded shadow-lg border border-gray-700" 
+                            alt="Change Map" 
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/map:opacity-100 transition-opacity flex items-center justify-center rounded">
+                            <p className="text-[10px] text-white font-medium bg-black/60 px-2 py-1 rounded">高亮显示变化区域</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6 text-[10px]">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-gray-200/40 border border-gray-500 rounded-sm" />
+                            <span className="text-gray-400">未变化区域</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-purple-500 rounded-sm" />
+                            <span className="text-gray-400">发生变化区域 (按新地类着色)</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {tifStats.t1 && tifStats.t2 && (
                     <div className="bg-purple-50/50 border border-purple-100 rounded-2xl p-4 flex items-center justify-between">
@@ -1868,10 +2136,13 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
                 className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-200 flex items-center justify-center gap-2"
               >
                 {isProcessing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    正在处理像素...
-                  </>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>正在处理像素...</span>
+                    </div>
+                    <span className="text-[10px] font-normal opacity-70">这可能需要几秒钟，请勿关闭窗口</span>
+                  </div>
                 ) : (
                   <>
                     <Check className="w-4 h-4" />
@@ -2007,7 +2278,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
       )}
 
       {/* Hidden Report Content for PDF Generation */}
-      <div className="absolute left-0 top-0 -z-50 opacity-0 pointer-events-none overflow-hidden h-0">
+      <div className="fixed left-[-9999px] top-0 -z-50 pointer-events-none">
         <div ref={reportRef} className="w-[210mm] bg-white p-[20mm] text-gray-900 font-sans">
           <div className="border-b-4 border-amber-600 pb-6 mb-8">
             <h1 className="text-4xl font-black text-gray-900 mb-2">{reportConfig.title}</h1>
