@@ -3,10 +3,13 @@ import { Plus, Trash2, RefreshCw, Upload, X, Check, AlertCircle, FileType, Setti
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { fromArrayBuffer } from 'geotiff';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Legend } from 'recharts';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import SankeyDiagram from './SankeyDiagram';
+import ChordDiagram from './ChordDiagram';
+import StackedBarChart from './StackedBarChart';
 
 import {
   DndContext,
@@ -543,6 +546,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
   const [tifData, setTifData] = useState<{ t1?: any; t2?: any }>({});
 
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [sankeyData, setSankeyData] = useState<{ nodes: any[]; links: any[] }>({ nodes: [], links: [] });
   const [exportDropdownOpen, setExportDropdownOpen] = useState<string | null>(null);
 
   // Undo/Redo History
@@ -899,6 +903,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
       });
     });
     onDataChange(nodes, links);
+    setSankeyData({ nodes, links });
     if (onFullDataChange) {
       onFullDataChange(mat, cats, nodeColors);
     }
@@ -1274,8 +1279,15 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
+        width: element.offsetWidth,
+        height: element.offsetHeight,
+        onclone: (clonedDoc) => {
+          const clonedElement = clonedDoc.querySelector('[data-report="true"]') as HTMLElement;
+          if (clonedElement) {
+            clonedElement.style.position = 'static';
+            clonedElement.style.left = '0';
+          }
+        }
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -2312,7 +2324,7 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
 
       {/* Hidden Report Content for PDF Generation */}
       <div className="fixed left-[-9999px] top-0 -z-50 pointer-events-none">
-        <div ref={reportRef} className="w-[210mm] bg-white p-[20mm] text-gray-900 font-sans">
+        <div ref={reportRef} data-report="true" className="w-[210mm] bg-white p-[20mm] text-gray-900 font-sans">
           <div className="border-b-4 border-amber-600 pb-6 mb-8">
             <h1 className="text-4xl font-black text-gray-900 mb-2">{reportConfig.title}</h1>
             <div className="flex justify-between text-sm text-gray-500 font-medium">
@@ -2428,21 +2440,70 @@ export default function TransferMatrix({ onDataChange, onFullDataChange, onSpati
             )}
 
             {reportConfig.showCharts && (
-              <section>
-                <h2 className="text-xl font-bold text-gray-900 border-l-4 border-amber-600 pl-3 mb-4">4. 变化趋势图表</h2>
-                <div className="h-[300px] w-full bg-gray-50 p-6 rounded-2xl border border-gray-100">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart width={640} height={260} data={stats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip />
-                      <Bar dataKey="net" name="净变化" radius={[4, 4, 0, 0]}>
-                        {stats.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.net > 0 ? '#10b981' : '#ef4444'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+              <section className="break-after-page">
+                <h2 className="text-xl font-bold text-gray-900 border-l-4 border-amber-600 pl-3 mb-6">4. 变化趋势与空间转移图表</h2>
+                
+                <div className="space-y-12">
+                  {/* 1. Sankey Diagram */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">4.1 土地利用转移桑基图 (Sankey Diagram)</h3>
+                    <div className="border border-gray-100 rounded-2xl bg-white p-4 overflow-hidden">
+                      <SankeyDiagram data={sankeyData} width={700} height={450} />
+                    </div>
+                    <p className="text-[10px] text-gray-400 italic text-center">注：左侧代表 T1 时期，右侧代表 T2 时期，连线宽度代表转移面积。</p>
+                  </div>
+
+                  {/* 2. Chord Diagram */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">4.2 土地利用转移弦图 (Chord Diagram)</h3>
+                    <div className="border border-gray-100 rounded-2xl bg-white p-4 flex justify-center">
+                      <ChordDiagram 
+                        matrix={matrix} 
+                        categories={categories} 
+                        colors={categoryColors} 
+                        width={500} 
+                        height={500} 
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 italic text-center">注：圆周代表各地类总量，内部弦代表地类间的相互转移流量。</p>
+                  </div>
+
+                  {/* 3. Stacked Bar Chart */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">4.3 土地利用结构对比图 (Stacked Bar Chart)</h3>
+                    <div className="border border-gray-100 rounded-2xl bg-white p-4">
+                      <StackedBarChart 
+                        matrix={matrix} 
+                        categories={categories} 
+                        colors={categoryColors} 
+                        width={700}
+                        height={450}
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-400 italic text-center">注：对比 T1 与 T2 时期各地类面积总量的结构性变化。</p>
+                  </div>
+
+                  {/* 4. Net Change Bar Chart */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">4.4 各地类净变化统计图 (Net Change)</h3>
+                    <div className="h-[350px] w-full bg-white p-6 rounded-2xl border border-gray-100">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={stats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                          />
+                          <Bar dataKey="net" name="净变化" radius={[4, 4, 0, 0]}>
+                            {stats.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.net > 0 ? '#10b981' : '#ef4444'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 </div>
               </section>
             )}

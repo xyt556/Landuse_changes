@@ -4,12 +4,16 @@ interface StackedBarChartProps {
   matrix: number[][];
   categories: string[];
   colors?: string[];
+  width?: number | string;
+  height?: number | string;
 }
 
 export default function StackedBarChart({
   matrix,
   categories,
   colors,
+  width = "100%",
+  height = 500,
 }: StackedBarChartProps) {
   // Calculate T1 and T2 totals for each category
   const data = [
@@ -33,7 +37,7 @@ export default function StackedBarChart({
   const defaultColors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00c49f'];
 
   return (
-    <div className="h-[500px] w-full bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+    <div style={{ height, width }} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
