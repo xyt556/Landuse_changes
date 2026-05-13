@@ -77,7 +77,18 @@ export const exportToPDF = async (elementId: string, filename: string = "分析�
     scale: 2,
     useCORS: true,
     logging: false,
-    backgroundColor: '#ffffff'
+    backgroundColor: '#ffffff',
+    width: element.offsetWidth,
+    height: element.offsetHeight,
+    onclone: (clonedDoc) => {
+      const clonedElement = clonedDoc.getElementById(elementId);
+      if (clonedElement) {
+        clonedElement.style.position = 'static';
+        clonedElement.style.left = '0';
+        clonedElement.style.top = '0';
+        clonedElement.style.visibility = 'visible';
+      }
+    }
   });
   
   const imgData = canvas.toDataURL('image/png');

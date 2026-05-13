@@ -11,10 +11,12 @@ import ChordDiagram from './components/ChordDiagram';
 import StackedBarChart from './components/StackedBarChart';
 import UserGuide from './components/UserGuide';
 import SpatialMap from './components/SpatialMap';
+import AccessGate from './components/AccessGate';
 import { exportToCSV, exportToExcel, exportToPDF, calculateStats } from './lib/exportUtils';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
+  const [isVerified, setIsVerified] = useState(() => !!sessionStorage.getItem('access_email'));
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -85,6 +87,10 @@ export default function App() {
     setSpatialData(data);
     if (data) setActiveTab('spatial');
   };
+
+  if (!isVerified) {
+    return <AccessGate onVerified={() => setIsVerified(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-gray-900 font-sans selection:bg-blue-100">
